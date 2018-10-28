@@ -1,0 +1,1 @@
+Discord chat bot to manage roles in Hunters S17 guild
