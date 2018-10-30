@@ -1,24 +1,41 @@
 # beelbot.py
 import discord
+import asyncio
+from discord.ext import commands
 
-# create discord client
-client = discord.Client()
+# command prefix
+prefix = "$"
+
+# create discord bot
+bot = commands.Bot(command_prefix=prefix)
 
 # bot token
 token = 'NTA2MTMxOTE4OTc5NDY1MjI3.DrdtjQ.kbUpWr-G7nFSq3bWvfQ2nYWXbtA'
 
-# bot 
-@client.event
+# bot is online
+@bot.event
 async def on_ready():
-	try:
-		print(client.user.name)
-		print(client.user.id)
-		print(f'Discord.py Version: {discord.__version__}')
-	except Exception as e:
-		print(e)
+	print('beelbot is ready')
 
-@client.event
-async def on_message(message):
-	await message.content
+# bot ping command
+@bot.command()
+async def ping(ctx):
+	latency = bot.latency
+	await ctx.send(latency)
 
-client.run(token)
+# bot echo test command
+@bot.command()
+async def echo(ctx, *, content:str):
+	await ctx.send(ctx.guild)
+	await ctx.send(ctx.author.roles)
+	await ctx.send(content)
+
+# role assignment command
+@bot.command()
+async def KL(ctx, arg):
+	user = ctx.author
+	await user.add_roles(arg)
+	await ctx.send(arg)
+
+# client.run(token)
+bot.run(token)
