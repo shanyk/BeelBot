@@ -34,8 +34,23 @@ async def echo(ctx, *, content:str):
 @bot.command()
 async def KL(ctx, arg):
 	user = ctx.author
-	await user.add_roles(arg)
-	await ctx.send(arg)
+	roles = ctx.guild.roles
+	role_id = None 
+	name = user.display_name
+
+	for role in roles:
+		if arg in role.name:
+			role_id = role
+
+	if role_id == None:
+		await ctx.send(f'Role not found.')
+		return
+
+	try:
+		await user.add_roles(role_id, atomic=True)
+		await ctx.send(f'{name} has been assigned {role_id}')
+	except (discord.Forbidden, discord.HTTPException) as e:
+		await ctx.send(f'{role_id} could not be assigned')
 
 # client.run(token)
 bot.run(token)
