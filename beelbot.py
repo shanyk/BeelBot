@@ -12,6 +12,8 @@ bot = commands.Bot(command_prefix=prefix)
 # bot token
 token = 'NTA2MTMxOTE4OTc5NDY1MjI3.DrdtjQ.kbUpWr-G7nFSq3bWvfQ2nYWXbtA'
 
+roles = None
+
 # bot is online
 @bot.event
 async def on_ready():
@@ -33,14 +35,25 @@ async def echo(ctx, *, content:str):
 # role assignment command
 @bot.command()
 async def KL(ctx, arg):
+
+	KL = None
+
+	try:
+		KL = int(arg)
+	except ValueError as e:
+		await ctx.send('Please enter an integer for your KL. ex. $KL 100')
+		return
+
+	rounded_KL = KL if KL % 25 == 0 else KL - 25 + (25 - KL % 25)
+
 	user = ctx.author
-	roles = ctx.guild.roles
+	roles = [role for role in ctx.guild.roles if role.name.startswith('KL')]
 	role_id = None 
 	name = user.display_name
 
-	for role in roles:
-		if arg in role.name:
-			role_id = role
+	role_dict = {int(role.name[3:6]):role for role in roles}
+
+	role_id = role_dict[rounded_KL]
 
 	if role_id == None:
 		await ctx.send(f'Role not found.')
