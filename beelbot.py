@@ -61,9 +61,18 @@ async def KL(ctx, arg):
 
 	try:
 		await user.add_roles(role_id, atomic=True)
-		await ctx.send(f'{name} has been assigned {role_id}')
+		await ctx.send(f'{ctx.author.mention} has been assigned {role_id}')
 	except (discord.Forbidden, discord.HTTPException) as e:
-		await ctx.send(f'{role_id} could not be assigned')
+		await ctx.send(f'{ctx.author.mention} {role_id} could not be assigned')
+
+@bot.event
+async def on_command_error(ctx, error):
+	await ctx.send(f'{ctx.author.mention} {error}')
+
+@bot.command()
+async def offline(ctx):
+	await ctx.send('I\'m dying...')
+	await bot.close()
 
 # client.run(token)
 bot.run(token)
