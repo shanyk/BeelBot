@@ -1,6 +1,7 @@
 # beelbot.py
 import discord
 import asyncio
+import asyncpg
 from discord.ext import commands
 
 # command prefix
@@ -12,7 +13,12 @@ bot = commands.Bot(command_prefix=prefix)
 # bot token
 token = 'NTA2MTMxOTE4OTc5NDY1MjI3.DrdtjQ.kbUpWr-G7nFSq3bWvfQ2nYWXbtA'
 
-roles = None
+user = None
+pw = None
+
+with open('userpass.txt', 'r') as f:
+	user = f.readline().strip()
+	pw = f.readline().strip()
 
 # bot is online
 @bot.event
@@ -70,9 +76,48 @@ async def on_command_error(ctx, error):
 	await ctx.send(f'{ctx.author.mention} {error}')
 
 @bot.command()
-async def offline(ctx):
-	await ctx.send('I\'m dying...')
-	await bot.close()
+async def offline(ctx):	
+	if 'Admin' in [role.name for role in ctx.author.roles]:	
+		await ctx.send('I\'m dying...')
+		await bot.close()
+	else:
+		await ctx.send('Nice try')
+		return
+
+# @bot.command()
+# async def updatemedals(ctx, arg):
+# 	pool = await asyncpg.create_pool(user=user, password=pw, database='beelbot')
+
+# 	missing = False
+
+# 	async with pool.acquire() as conn:
+
+@bot.command()
+async def set(ctx, medals, mpm):
+	
+	# await ctx.send(f'{type(ctx.author.id)} {ctx.author.id}')
+	# await ctx.send(f'{type(ctx.author.display_name)} {ctx.author.display_name}')
+	# await ctx.send(f'{type(medal)} {medal}')
+	# await ctx.send(f'{type(mpm)} {mpm}')
+
+	pool = await asyncpg.create_pool(user=user, password=pw, database='beelbot')
+
+	ID = ctx.author.id
+	name = ctx.author.display_name
+	
+	async with pool.acquire() as con:
+		await ctx.send('connection established')
+		await con.execute((f'INSERT INTO profile (id, name, medals, mpm) '
+			f'VALUES ({ID}, \'{name}\', \'{medals}\', \'{mpm}\')'))
+
+	await pool.close()
+
+# @bot.command()
+# async def reset(ctx):
+# 	await ctx.send('Reseting')
+# 	await bot.close()
+# 	run()
+# 	await ctx.send('Reset complete')
 
 # client.run(token)
 bot.run(token)
