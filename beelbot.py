@@ -23,7 +23,7 @@ with open('userpass.txt', 'r') as f:
 # bot is online
 @bot.event
 async def on_ready():
-	print('beelbot is ready')
+	print('Beel is online.')
 
 # bot ping command
 @bot.command()
@@ -35,7 +35,7 @@ async def ping(ctx):
 	gives the user the correct KL tag based on the KL they entered
 '''
 @bot.command()
-async def KL(ctx, arg):
+async def kl(ctx, arg):
 
 	KL = None
 
@@ -79,7 +79,7 @@ async def on_command_error(ctx, error):
 @bot.command()
 async def offline(ctx):	
 	if 'Admin' in [role.name for role in ctx.author.roles]:	
-		await ctx.send('I\'m dying...')
+		await ctx.send('Going offline...')
 		await bot.close()
 	else:
 		await ctx.send('Nice try')
@@ -91,7 +91,7 @@ async def offline(ctx):
 	will also display stat increases
 '''
 @bot.command()
-async def update(ctx, KL, medals, mpm):
+async def update(ctx, KL, medals, mpm, gd = None):
 	
 	# await ctx.send(f'{type(ctx.author.id)} {ctx.author.id}')
 	# await ctx.send(f'{type(ctx.author.display_name)} {ctx.author.display_name}')
@@ -103,22 +103,28 @@ async def update(ctx, KL, medals, mpm):
 	ID = ctx.author.id
 	name = ctx.author.display_name
 
-	old_KL = None
-	old_mpm = None
-	old_medals = None
-
 	KL_gain = None
 	mpm_gain = None
 	medal_gain = None
 
-	guild = ''
+	member = None
 
 	async with pool.acquire() as con:
 		member = await con.fetchrow(f'SELECT kl, medals, mpm, guild FROM profile WHERE id = {ID}')
-		old_KL = member['kl'] 
-		old_mpm = member['mpm']
-		old_medals = member['medals']
-		guild = member['guild']
+
+	if member == None:
+		async with pool.acquire() as con:
+			await con.execute((f'INSERT INTO profile (id, name, medals, mpm, kl, guild) '
+				f'VALUES ({ctx.author.id}, \'{ctx.author.display_name}\', \'{medals}\', \'{mpm}\', \'{KL}\', \'{gd}\')'))
+			await profile.invoke(ctx)
+			await ctx.send(f'You have been entered into the database!')
+		return
+
+	
+	old_KL = member['kl'] 
+	old_mpm = member['mpm']
+	old_medals = member['medals']
+	guild = member['guild'] if member['guild'] != None else ''
 
 	medal_gain = calc_dif(old_medals, medals)
 	mpm_gain = calc_dif(old_mpm, mpm)
@@ -189,14 +195,14 @@ async def set(ctx, KL, medals, mpm, guild):
 	await pool.close()
 
 '''
-	profile command lets user see their personal stats
+	profile command lets user see their personal stats or query another user
 	name KL
 	guild
 	total medals
 	mpm
 '''
 @bot.command()
-async def profile(ctx):
+async def profile(ctx, name=None):
 
 	pool = await asyncpg.create_pool(user=user, password=pw, database='beelbot')
 
@@ -204,24 +210,35 @@ async def profile(ctx):
 	medals = ''
 	mpm = ''
 	guild = ''
+	dname = ctx.author.display_name if name == None else name
 
-	async with pool.acquire() as con:
-		member = await con.fetchrow((f'SELECT kl, medals, mpm, guild FROM profile WHERE id = {ctx.author.id}'))
-		KL = member['kl']
-		medals = member['medals']
-		mpm = member['mpm']
-		guild = member['guild']
+	if name == None:
+		async with pool.acquire() as con:
+			member = await con.fetchrow((f'SELECT name, kl, medals, mpm, guild FROM profile WHERE id = {ctx.author.id}'))
+			KL = member['kl']
+			medals = member['medals']
+			mpm = member['mpm']
+			guild = member['guild']
+			dname = member['name']
+	else:
+		async with pool.acquire() as con:
+			member = await con.fetchrow((f'SELECT name, kl, medals, mpm, guild FROM profile WHERE name ILIKE \'%{name}%\''))
+			KL = member['kl']
+			medals = member['medals']
+			mpm = member['mpm']
+			guild = member['guild']
+			dname = member['name']
 
 	total = 'Total Medals: '
 	current = 'Current MPM: '
 	br = '=' * 10
 
 	profile_str = (f'{ctx.author.mention}\n'
-		f'```{ctx.author.display_name}   KL {KL}\n'
+		f'```{dname}   KL {KL}\n'
 		f'{guild}\n'
 		f'{br}\n'
-		f'{total:<14} {medals:>5}\n'
-		f'{current:<14} {mpm:>5}```'
+		f'{total:<14} {medals:>6}\n'
+		f'{current:<14} {mpm:>6}```'
 		)
 
 	await ctx.send(profile_str)
@@ -238,10 +255,10 @@ async def profile(ctx):
 def calc_dif(old, new):
 
 	old_num = float(old[:-1])
-	old_char = old[-1:]
+	old_char = old[-1:].lower()
 
 	new_num = float(new[:-1])
-	new_char = new[-1:]
+	new_char = new[-1:].lower()
 
 	multiplier = (ord(new_char) - ord(old_char)) * 1000
 
