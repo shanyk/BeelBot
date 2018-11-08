@@ -2,7 +2,9 @@
 import discord
 import asyncio
 import asyncpg
+import pandas as pd
 from discord.ext import commands
+from decimal import Decimal
 
 # command prefix
 prefix = "$"
@@ -15,7 +17,7 @@ token = None
 user = None
 pw = None
 
-with open('userpass.txt', 'r') as f:
+with open('config.txt', 'r') as f:
 	user = f.readline().strip()
 	pw = f.readline().strip()
 	token = f.readline().strip()
@@ -110,7 +112,7 @@ async def update(ctx, KL, medals, mpm, gd = None):
 	member = None
 
 	async with pool.acquire() as con:
-		member = await con.fetchrow(f'SELECT kl, medals, mpm, guild FROM profile WHERE id = {ID}')
+		member = await con.fetchrow(f'SELECT name, kl, medals, mpm, guild FROM profile WHERE id = {ID}')
 
 	if member == None:
 		async with pool.acquire() as con:
@@ -120,7 +122,7 @@ async def update(ctx, KL, medals, mpm, gd = None):
 			await ctx.send(f'You have been entered into the database!')
 		return
 
-	
+	dname = member['name']
 	old_KL = member['kl'] 
 	old_mpm = member['mpm']
 	old_medals = member['medals']
@@ -137,43 +139,18 @@ async def update(ctx, KL, medals, mpm, gd = None):
 			f'No update will be made because medal gain is negative.'))
 		return
 
-	br = '=' * 10
-	kl_prev = 'Previous KL: '
-	kl_new = 'New KL: '
-	kl_gain_str = 'KLs gained: '
-	md_prev = 'Previous Medals: '
-	md_new = 'New Medals: '
-	md_gain_str = 'Medals gained: '
-	md_percent = 'Medal gain %: '
-	mpm_prev = 'Previous MPM: '
-	mpm_new = 'New MPM: '
-	mpm_gain_str = 'MPM gain: '
-	mpm_percent = 'MPM gain %: '
+	update_embed = embed_update(dname, guild, old_KL, KL, KL_gain, medals, old_medals, medal_gain, mpm, old_mpm, mpm_gain)
+	update_embed.set_thumbnail(url=ctx.author.avatar_url)
 
-	update_str = (f'{ctx.author.mention}\n'
-		f'```{ctx.author.display_name}   KL {KL}\n'
-		f'{guild}\n'
-		f'{br}\n'
-		f'{kl_prev:<13} {old_KL:>4}\n'
-		f'{kl_new:<13} {KL:>4}\n'
-		f'{kl_gain_str:<13} {KL_gain:>4}\n'
-		f'{br}\n'
-		f'{md_prev:<17} {old_medals:>6}\n'
-		f'{md_new:<17} {medals:>6}\n'
-		f'{md_gain_str:<17} {medal_gain[0]:>6}\n'
-		f'{md_percent:<17} {medal_gain[1]:>6}\n'
-		f'{br}\n'
-		f'{mpm_prev:<14} {old_mpm:>6}\n'
-		f'{mpm_new:<14} {mpm:>6}\n'
-		f'{mpm_gain_str:<14} {mpm_gain[0]:>6}\n'
-		f'{mpm_percent:<14} {mpm_gain[1]:>6}\n```')
-
-	await ctx.send(update_str)
+	await ctx.send(ctx.author.mention, embed=update_embed)
 
 	async with pool.acquire() as con:
 		await con.execute((f'UPDATE profile SET mpm = \'{mpm}\', medals = \'{medals}\', kl = {int(KL)}'
 			f'WHERE id = {ctx.author.id}'))
 		await ctx.send('Profile updated successfully!')
+
+	# async with pool.acquire() as con:
+	# 	await con.execute((f'INSERT INTO data (kl, mpm) VALUES ({KL}, )'))
 
 	await pool.close()
 
@@ -229,21 +206,91 @@ async def profile(ctx, name=None):
 			guild = member['guild']
 			dname = member['name']
 
-	total = 'Total Medals: '
-	current = 'Current MPM: '
-	br = '=' * 10
+	profile_embed = embed_profile(dname, KL, guild, medals, mpm)
+	profile_embed.set_thumbnail(url=ctx.author.avatar_url)
 
-	profile_str = (f'{ctx.author.mention}\n'
-		f'```{dname}   KL {KL}\n'
-		f'{guild}\n'
-		f'{br}\n'
-		f'{total:<14} {medals:>6}\n'
-		f'{current:<14} {mpm:>6}```'
-		)
-
-	await ctx.send(profile_str)
+	await ctx.send(ctx.author.mention, embed=profile_embed)
 
 	await pool.close()
+
+@bot.command()
+async def sr(ctx, kl):
+
+	pool = await asyncpg.create_pool(user=user, password=pw, database='beelbot')
+
+	srData = []
+	srKL = []
+	nkl = int(kl)
+
+	async with pool.acquire() as con:
+		srKL = await con.fetch((f'SELECT kl, mpm FROM data WHERE kl={nkl}'))
+	
+	for record in srKL:
+
+		s = str(int(record['mpm']))
+		e = len(s) - 1
+		letternum = e // 3
+		letter = chr(letternum + 96)
+		front = len(s) - (letternum * 3)
+		beg = s[:front+1]
+		num_str = f'{beg[:-1]}.{beg[-1:]}{letter}'
+		srData.append([int(record['kl']), num_str])
+
+	df = pd.DataFrame(data=srData, columns=['kl', 'mpm'])
+
+	if not srData:
+		await ctx.send(f'{ctx.author.mention}\nNo MPM data is available for that KL sorry.')
+	else:
+		await ctx.send(f'{ctx.author.mention}\nHere are the MPM\'s for KL {kl}```{df}```')
+
+	await pool.close()
+
+
+def embed_profile(dname, KL, guild, medals, mpm):
+	embed = discord.Embed(title=dname)
+	embed.add_field(name="Guild", value=guild, inline=False)
+	embed.add_field(name="KL", value=KL, inline=False)
+	embed.add_field(name="Medals", value=medals, inline=False)
+	embed.add_field(name="MPM", value=mpm, inline=False)
+	return embed
+
+def embed_update(dname, guild, preKL, KL, KLgain, medals, preMedals, medalsGain, mpm, preMPM, mpmGain):
+	
+	kl_prev = 'Previous KL: '
+	kl_new = 'New KL: '
+	kl_gain_str = 'KLs gained: '
+	KLinfo = (f'```{kl_prev:<13} {preKL:>4}\n'
+		f'{kl_new:<13} {KL:>4}\n'
+		f'{kl_gain_str:<13} {KLgain:>4}```')
+
+	md_prev = 'Previous Medals: '
+	md_new = 'New Medals: '
+	md_gain_str = 'Medals gained: '
+	md_percent = 'Medal gain %: '
+	medalInfo = (f'```{md_prev:<17} {preMedals:>6}\n'
+		f'{md_new:<17} {medals:>6}\n'
+		f'{md_gain_str:<17} {medalsGain[0]:>6}\n'
+		f'{md_percent:<17} {medalsGain[1]:>6}```')
+
+	mpm_prev = 'Previous MPM: '
+	mpm_new = 'New MPM: '
+	mpm_gain_str = 'MPM gain: '
+	mpm_percent = 'MPM gain %: '
+	mpmInfo = (f'```{mpm_prev:<14} {preMPM:>6}\n'
+		f'{mpm_new:<14} {mpm:>6}\n'
+		f'{mpm_gain_str:<14} {mpmGain[0]:>6}\n'
+		f'{mpm_percent:<14} {mpmGain[1]:>6}```')
+
+	embed = discord.Embed(title=dname)
+	embed.add_field(name="Guild", value=guild, inline=False)
+	embed.add_field(name="KL Info", value=KLinfo, inline=False)
+	embed.add_field(name="Medals Info", value=medalInfo, inline=False)
+	embed.add_field(name="MPM Info", value=mpmInfo, inline=False)
+
+	return embed
+
+
+
 
 '''
 	calc_dif is used to calculate the difference between old medals and new medals 
@@ -276,7 +323,19 @@ def calc_dif(old, new):
 
 		return (gain_str, gain_percent_str)
 	else: 
-		return None
+		return None 
+
+
+def to_Decimal(s):
+
+	 num = s[:-1]
+	 letter = s[-1:]
+
+	 zeros = (ord(letter) - 96) * 3
+	 m = int('1' + '0' * zeros)
+
+	 return f'{Decimal(str(float(num) * m)):.2E}'
+
 
 bot.run(token)
 
