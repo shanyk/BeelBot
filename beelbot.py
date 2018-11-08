@@ -33,11 +33,19 @@ async def ping(ctx):
 	latency = bot.latency
 	await ctx.send(latency)
 
-'''
-	gives the user the correct KL tag based on the KL they entered
-'''
 @bot.command()
 async def kl(ctx, arg):
+	'''
+		Assigns a user the correct KL role depending on the Knight Level they enter
+
+		Arguments:
+		ctx -- context which the bot is working in. basically the message object the bot is reading
+		arg -- Knight Level user entered 
+
+		Exceptions:
+		discord.Forbidden -- Role could not be assigned because the bot dosn't have permissions for that role
+		discord.HTTPException -- Role could not be found
+	'''
 
 	KL = None
 
@@ -68,18 +76,27 @@ async def kl(ctx, arg):
 	except (discord.Forbidden, discord.HTTPException) as e:
 		await ctx.send(f'{ctx.author.mention} {role_id} could not be assigned')
 
-'''
-	Catch all for all command errors. Sends the error string to the discord.
-'''
 @bot.event
 async def on_command_error(ctx, error):
+	'''
+		Catch all for all command errors. Sends the error string to the discord.
+		
+		Arguments:
+		ctx -- message object read by the bot
+		error -- error object being thrown and caught
+	'''
+
 	await ctx.send(f'{ctx.author.mention} {error}')
 
-'''
-	command for users with the 'Admin' role on discord to turn off the discord bot
-'''
+
 @bot.command()
 async def offline(ctx):	
+	'''
+		Admin command to take the bot offline
+
+		Arguments:
+		ctx -- message object read by the bot
+	'''
 	if 'Admin' in [role.name for role in ctx.author.roles]:	
 		await ctx.send('Going offline...')
 		await bot.close()
@@ -87,18 +104,23 @@ async def offline(ctx):
 		await ctx.send('Nice try')
 		return
 
-'''
-	update command updates the database with new KL, medals, and mpm
-	will throw errors if data entered is less than what it was before
-	will also display stat increases
-'''
+
 @bot.command()
 async def update(ctx, KL, medals, mpm, gd = None):
-	
-	# await ctx.send(f'{type(ctx.author.id)} {ctx.author.id}')
-	# await ctx.send(f'{type(ctx.author.display_name)} {ctx.author.display_name}')
-	# await ctx.send(f'{type(medal)} {medal}')
-	# await ctx.send(f'{type(mpm)} {mpm}')
+	'''
+		Update command updates the user in database with new KL, medals, and mpm
+		and create and send a discord embed object to the context channel
+
+		Arguments:
+		ctx -- [automatic] original message object read by bot
+		KL -- [mandatory] Knight Level entered by user (String)
+		medals -- [mandatory] medals entered by the user (String)
+		mpm -- [mandatory] medals per minute entered by the user (String)
+		gd -- [optional] guild entered by the user, DEFAULT to None (String)
+
+		Exceptions:
+		missing arg -- if any mandatory argument is missing
+	'''
 
 	pool = await asyncpg.create_pool(user=user, password=pw, database='beelbot')
 
@@ -159,27 +181,30 @@ async def update(ctx, KL, medals, mpm, gd = None):
 	first command that any new member of the discord should call in order to set their profile
 	for the first time
 '''
-@bot.command()
-async def set(ctx, KL, medals, mpm, guild):
+# @bot.command()
+# async def set(ctx, KL, medals, mpm, guild):
 
-	pool = await asyncpg.create_pool(user=user, password=pw, database='beelbot')
+# 	pool = await asyncpg.create_pool(user=user, password=pw, database='beelbot')
 
-	async with pool.acquire() as con:
-		await con.execute((f'INSERT INTO profile (id, name, medals, mpm, kl, guild) '
-			f'VALUES ({ctx.author.id}, \'{ctx.author.display_name}\', \'{medals}\', \'{mpm}\', \'{KL}\', \'{guild}\')'))
-		await ctx.send(f'{ctx.author.mention} you have been entered into the database!')
+# 	async with pool.acquire() as con:
+# 		await con.execute((f'INSERT INTO profile (id, name, medals, mpm, kl, guild) '
+# 			f'VALUES ({ctx.author.id}, \'{ctx.author.display_name}\', \'{medals}\', \'{mpm}\', \'{KL}\', \'{guild}\')'))
+# 		await ctx.send(f'{ctx.author.mention} you have been entered into the database!')
 
-	await pool.close()
+# 	await pool.close()
 
-'''
-	profile command lets user see their personal stats or query another user
-	name KL
-	guild
-	total medals
-	mpm
-'''
+
 @bot.command()
 async def profile(ctx, name=None):
+	'''
+		Profile command lets user see their personal stats or the stats of another user.
+		
+		Arguments: 
+		ctx -- [automatic] object gained when bot reads in a message from the channel
+
+		Keyword Arguments:
+		name -- [optional] DEFAULT = None, name of another user the command caller want to search for (String)
+	'''
 
 	pool = await asyncpg.create_pool(user=user, password=pw, database='beelbot')
 
@@ -215,6 +240,13 @@ async def profile(ctx, name=None):
 
 @bot.command()
 async def sr(ctx, kl):
+	'''
+		Queries the database for MPM's at the specified KL then places them into a discord embed object to send to the channel
+
+		Arguments:
+		ctx -- [automatic] message object read by bot
+		kl -- [mandatory] Knight level entered by the user (String)
+	'''
 
 	pool = await asyncpg.create_pool(user=user, password=pw, database='beelbot')
 
@@ -247,6 +279,19 @@ async def sr(ctx, kl):
 
 
 def embed_profile(dname, KL, guild, medals, mpm):
+	'''
+		Creates a discord embed object to represent the user's stats
+
+		Arguments:
+		dname -- [mandatory] name of user to be displayed (String)
+		KL -- [mandatory] knight level of user (String)
+		guild -- [mandatory] guild of user (String)
+		medals -- [mandatory] medal count of user (String)
+		mpm -- [mandatory] medals per minute of user (String)
+
+		Return:
+		embed -- discord embed object
+	'''
 	embed = discord.Embed(title=dname)
 	embed.add_field(name="Guild", value=guild, inline=False)
 	embed.add_field(name="KL", value=KL, inline=False)
@@ -255,6 +300,25 @@ def embed_profile(dname, KL, guild, medals, mpm):
 	return embed
 
 def embed_update(dname, guild, preKL, KL, KLgain, medals, preMedals, medalsGain, mpm, preMPM, mpmGain):
+	'''
+		Creates a discord embed object to represent the user's statistics after the update and change in stats
+
+		Arguments:
+		dname -- [mandatory] name of user (string)
+		guild -- [mandatory] guild of the user (string)
+		preKL -- [mandatory] previous knight level (int)
+		KL -- [mandatory] current knight level (int)
+		KLgain -- [mandatory] current medal count (String)
+		preMedals -- [mandatory] previous medal count (String)
+		medalsGain -- [mandatory] madals gained as a (string, string % increase) (tuple)
+		mpm -- [mandatory] current medals per minute (String)
+		preMPM -- [mandatory] previous medals per minute (String)
+		mpmGain -- [mandatory] mpm gained as a (string, string % increase) (tuple)
+
+		Return:
+		embed -- discord embed object
+
+	'''
 	
 	kl_prev = 'Previous KL: '
 	kl_new = 'New KL: '
