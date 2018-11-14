@@ -278,6 +278,10 @@ async def sr(ctx, kl):
 	await pool.close()
 
 
+# @bot.command()
+# async def fix(ctx, item, )
+
+
 def embed_profile(dname, KL, guild, medals, mpm):
 	'''
 		Creates a discord embed object to represent the user's stats
@@ -355,15 +359,19 @@ def embed_update(dname, guild, preKL, KL, KLgain, medals, preMedals, medalsGain,
 
 
 
-
-'''
-	calc_dif is used to calculate the difference between old medals and new medals 
-	as well as old mpm and new mpm. medals and mpm are passed into the function as string.
-
-	two strings are returned as a number+char representation and a percentage representation
-	returns None if the gain is negative because this is indicative of data entry error
-'''
 def calc_dif(old, new):
+	'''
+		Used to calculate the difference given two string representations of medal count 
+		or medals per minute of the from ###.#S
+
+		Arguments:
+		old -- old string number representation ###.#S
+		new -- new string number representation ###.#S
+
+		Return:
+		None -- if the increase calculated is negative || prevent users from entering incorrect data
+		tuple (string rep of increase, string rep of % increase) if data is correct
+	'''
 
 	old_num = float(old[:-1])
 	old_char = old[-1:].lower()
@@ -391,6 +399,16 @@ def calc_dif(old, new):
 
 
 def to_Decimal(s):
+
+	'''
+		Changes a string rep of a number to scientific notation
+
+		Arguments:
+		s -- string representation of the number || ###.#S
+
+		Return:
+		string representation of the decimal
+	'''
 
 	 num = s[:-1]
 	 letter = s[-1:]
